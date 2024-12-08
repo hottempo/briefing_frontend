@@ -1,0 +1,107 @@
+﻿@page "/"
+@inject AuthenticationStateProvider AuthStateProvider
+@inject HttpClient Http
+@inject NavigationManager NavigationManager
+@inject ILocalStorageService LocalStorage
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Authorization
+@using Blazored.LocalStorage
+
+<h3>Welcome to the Dashboard</h3>
+
+@if (user == null)
+{
+    <p>Loading user info...</p>
+}
+else
+{
+    if (user.Identity.IsAuthenticated)
+    {
+        <p><strong>Logged in as:</strong> @user.Identity.Name</p>
+
+        <h4>METAR Data</h4>
+        <ul>
+            @foreach (var metar in metarData)
+            {
+                <li>@metar</li>
+            }
+        </ul>
+
+        <button @onclick="Logout">Logout</button>
+    }
+    else
+    {
+        <p>You are not logged in.</p>
+        <button @onclick="GoToLoginPage">Login</button>
+    }
+}
+
+@code {
+    private ClaimsPrincipal user;
+    private List<string> metarData = new List<string>();  // Assuming METAR data is a list of strings
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Get user information
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        user = authState.User;
+
+        if (user.Identity.IsAuthenticated)
+        {
+            await FetchMetarData();  // Fetch METAR data if logged in
+        }
+
+        StateHasChanged();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        user = authState.User;
+
+        if (user.Identity.IsAuthenticated)
+        {
+            await FetchMetarData();  // Fetch METAR data if logged in
+        }
+        else
+        {
+            metarData = new List<string>();  // Clear METAR data if not authenticated
+        }
+
+        StateHasChanged();  // Force re-render after authentication state is updated
+    }
+
+
+    private async Task FetchMetarData()
+    {
+        try
+        {
+            var response = await Http.GetAsync("api/Metar/latest");
+            if (response.IsSuccessStatusCode)
+            {
+                metarData = await response.Content.ReadFromJsonAsync<List<string>>();  // Adjust this based on your actual METAR data structure
+            }
+            else
+            {
+                metarData = new List<string> { "Unable to fetch METAR data." };
+            }
+        }
+        catch (Exception ex)
+        {
+            metarData = new List<string> { $"Error: {ex.Message}" };
+        }
+    }
+
+    private async Task Logout()
+    {
+        await LocalStorage.RemoveItemAsync("authToken");
+        ((CustomAuthStateProvider)AuthStateProvider).NotifyUserLogout();
+        NavigationManager.NavigateTo("/login");
+    }
+
+    private void GoToLoginPage()
+    {
+        Console.WriteLine("Go to login");
+        NavigationManager.NavigateTo("/login");
+    }
+}

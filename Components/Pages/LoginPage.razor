@@ -1,0 +1,77 @@
+﻿@page "/login"
+@inject AuthenticationStateProvider AuthStateProvider
+@inject HttpClient Http
+@inject ILocalStorageService LocalStorage
+@inject NavigationManager NavigationManager
+@using Blazored.LocalStorage
+@using Microsoft.AspNetCore.Components.Authorization
+
+@using Blazored.LocalStorage
+@using Microsoft.AspNetCore.Components.Authorization
+
+<h3>Login</h3>
+
+@if (errorMessage != null)
+{
+    <p style="color:red">@errorMessage</p>
+}
+
+<div>
+    <label>Username</label>
+    <input type="text" @bind="loginModel.Username" />
+</div>
+
+<div>
+    <label>Password</label>
+    <input type="password" @bind="loginModel.Password" />
+</div>
+
+<button @onclick="HandleLogin">Login</button>
+
+
+
+@code {
+
+    
+    private UserLoginDto loginModel = new UserLoginDto();
+    private string errorMessage;
+
+
+    private async Task HandleLogin()
+    {
+        Console.WriteLine("button clicked");
+        try
+        {
+            Console.WriteLine("Trying to log in");
+            var response = await Http.PostAsJsonAsync("api/Auth/login", loginModel);
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<LoginResponseDto>();
+                await LocalStorage.SetItemAsync("authToken", result.Token);
+                Console.WriteLine($"Token stored: {result.Token}");
+                ((CustomAuthStateProvider)AuthStateProvider).NotifyUserAuthentication(result.Token);
+                NavigationManager.NavigateTo("/");
+                StateHasChanged();
+            }
+            else
+            {
+                errorMessage = "Invalid username or password.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"An error occurred: {ex.Message}";
+        }
+    }
+
+    private class LoginResponseDto
+    {
+        public string Token { get; set; }
+    }
+
+    private class UserLoginDto
+    {
+        public string Username { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
+    }
+}
